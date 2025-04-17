@@ -221,8 +221,8 @@ class SeamImage:
 
         mask_3D = np.stack([self.mask] * 3, axis=2)
 
-        self.resized_gs = self.resized_gs[self.mask].reshape(self.h,self.w)
-        self.resized_rgb = self.resized_rgb[mask_3D].reshape(self.h,self.w)
+        self.resized_gs = self.resized_gs[self.mask].reshape(self.h,self.w,1)
+        self.resized_rgb = self.resized_rgb[mask_3D].reshape(self.h,self.w,3)
 
 
 
@@ -231,7 +231,21 @@ class SeamImage:
         """
         Rotates the matrices either clockwise or counter-clockwise.
         """
-        raise NotImplementedError("TODO: Implement SeamImage.rotate_mats")
+        rotation = 1 if clockwise else -1
+
+        self.gs = np.rot90(self.gs, k = rotation, axes=(0,1))
+        self.rgb = np.rot90(self.rgb, k = rotation, axes=(0,1))
+        self.resized_rgb = np.rot90(self.resized_rgb, k = rotation, axes=(0,1))
+        self.resized_gs = np.rot90(self.resized_gs, k = rotation, axes=(0,1))
+        self.cumm_mask = np.rot90(self.cumm_mask, k = rotation, axes=(0,1))
+        self.E = np.rot90(self.E, k = rotation, axes=(0,1))
+        self.idx_map_h = np.rot90(self.idx_map_h, k = rotation)
+        self.idx_map_v = np.rot90(self.idx_map_v, k = rotation)
+
+        self.h,self.w = self.w, self.h
+        self.idx_map_h,self.idx_map_v = self.idx_map_v, self.idx_map_h
+
+
 
     @NI_decor
     def seams_removal_vertical(self, num_remove: int):
@@ -319,7 +333,7 @@ class GreedySeamImage(SeamImage):
 
             local_min = np.argmin(self.E[r, start_idx:(finish_idx + 1)])
 
-            seam[r] = local_min
+            seam[r] = start_idx + local_min
         return seam
 
 
