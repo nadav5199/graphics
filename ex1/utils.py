@@ -254,8 +254,10 @@ class SeamImage:
         Parameters:
             num_remove (int): umber of vertical seam to be removed
         """
-        raise NotImplementedError(
-            "TODO: Implement SeamImage.seams_removal_horizontal")
+
+        self.idx_map = self.idx_map_h
+        self.seams_removal(num_remove)
+        self.seam_history.clear()
 
     @NI_decor
     def seams_removal_horizontal(self, num_remove: int):
@@ -264,8 +266,10 @@ class SeamImage:
         Parameters:
             num_remove (int): number of horizontal seam to be removed
         """
-        raise NotImplementedError(
-            "TODO: Implement SeamImage.seams_removal_horizontal")
+        self.rotate_mats(True)
+        self.idx_map = self.idx_map_h
+        self.seams_removal_vertical(num_remove)
+        self.rotate_mats(False)
 
     """
     BONUS SECTION
@@ -324,14 +328,14 @@ class GreedySeamImage(SeamImage):
         The first pixel of the seam should be the pixel with the lowest cost.
         Every row chooses the next pixel based on which neighbor has the lowest cost.
         """
-        seam = np.zeros_like(self.h, dtype=int)
+        seam = np.zeros(self.h, dtype=int)
         seam[0] = np.argmin(self.E[0])
 
         for r in range(1,self.h):
             start_idx = max(0, seam[r-1] - 1)
-            finish_idx = min(self.w, seam[r - 1] + 1)
+            finish_idx = min(self.w, seam[r - 1] + 2)
 
-            local_min = np.argmin(self.E[r, start_idx:(finish_idx + 1)])
+            local_min = np.argmin(self.E[r, start_idx:finish_idx])
 
             seam[r] = start_idx + local_min
         return seam
