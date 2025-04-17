@@ -90,9 +90,8 @@ class SeamImage:
             - np.gradient or other off-the-shelf tools are NOT allowed, however feel free to compare yourself to them
         """
         # Using padding to maintain original dimensions
-        padded = np.pad(self.gs, pad_width=1, mode='edge')
-                
-                
+        padded = np.pad(self.resized_gs.squeeze(), pad_width=1, mode='edge')
+            
         # Forward difference in x direction: I(x+1,y)−I(x,y)
         dx = padded[1:-1, 2:] - padded[1:-1, 1:-1]
 
@@ -111,7 +110,7 @@ class SeamImage:
 
     def update_ref_mat(self):
         for i, s in enumerate(self.seam_history[-1]):
-            self.idx_map[i, s:] += 1
+            self.idx_map[i, s:] = np.roll(self.idx_map[i, s:], -1)
 
     def reinit(self):
         """
@@ -128,7 +127,7 @@ class SeamImage:
             for i, s_i in enumerate(s):
                 self.cumm_mask[self.idx_map_v[i, s_i],
                                self.idx_map_h[i, s_i]] = False
-        cumm_mask_rgb = np.stack([self.cumm_mask] * 3, axis=2)
+        cumm_mask_rgb = np.stack([self.cumm_mask.squeeze()] * 3, axis=2)
         self.seams_rgb = np.where(cumm_mask_rgb, self.seams_rgb, [1, 0, 0])
 
     def seams_removal(self, num_remove: int):
@@ -171,35 +170,35 @@ class SeamImage:
         Returns:
             The found seam, represented as a list of indexes
         """
-        h, w = self.h, self.w
-        E = self.gs.copy()
-        M = np.full((h + 2, w + 2), np.inf, dtype=float)
-        M[1:-1, 1:-1] = E  
-        C = np.zeros_like(M, dtype=int)
-        path = []
+        # h, w = self.h, self.w
+        # E = self.gs.copy()
+        # M = np.full((h + 2, w + 2), np.inf, dtype=float)
+        # M[1:-1, 1:-1] = E  
+        # C = np.zeros_like(M, dtype=int)
+        # path = []
         
-        for i in range(2, h + 1):
-            for j in range(1, w + 1):
-                min_val = min(M[i - 1, j - 1], M[i - 1, j], M[i - 1, j + 1])
-                M[i, j] = E[i - 1, j - 1] + min_val
+        # for i in range(2, h + 1):
+        #     for j in range(1, w + 1):
+        #         min_val = min(M[i - 1, j - 1], M[i - 1, j], M[i - 1, j + 1])
+        #         M[i, j] = E[i - 1, j - 1] + min_val
                 
-                if min_val == M[i - 1, j - 1]:
-                    C[i, j] = j - 1
-                elif min_val == M[i - 1, j]:
-                    C[i, j] = j
-                else:
-                    C[i, j] = j + 1
+        #         if min_val == M[i - 1, j - 1]:
+        #             C[i, j] = j - 1
+        #         elif min_val == M[i - 1, j]:
+        #             C[i, j] = j
+        #         else:
+        #             C[i, j] = j + 1
             
-        C = C[1:-1, 1:-1] -1
-        M = M[1:-1, 1:-1]
+        # C = C[1:-1, 1:-1] -1
+        # M = M[1:-1, 1:-1]
 
-        min_idx = np.argmin(M[-1])
+        # min_idx = np.argmin(M[-1])
 
-        for i in range(h - 1, -1, -1):
-            path.append(min_idx)
-            min_idx = C[i, min_idx]
+        # for i in range(h - 1, -1, -1):
+        #     path.append(min_idx)
+        #     min_idx = C[i, min_idx]
 
-        return path[::-1]
+        # return path[::-1]
     
 
     @NI_decor
@@ -231,7 +230,7 @@ class SeamImage:
         """
         Rotates the matrices either clockwise or counter-clockwise.
         """
-        rotation = 1 if clockwise else -1
+        rotation = -1 if clockwise else 1
 
         self.gs = np.rot90(self.gs, k = rotation, axes=(0,1))
         self.rgb = np.rot90(self.rgb, k = rotation, axes=(0,1))
@@ -241,7 +240,7 @@ class SeamImage:
         self.E = np.rot90(self.E, k = rotation, axes=(0,1))
         self.idx_map_h = np.rot90(self.idx_map_h, k = rotation)
         self.idx_map_v = np.rot90(self.idx_map_v, k = rotation)
-
+        self.seams_rgb = np.rot90(self.seams_rgb, k = rotation, axes= (0,1))
         self.h,self.w = self.w, self.h
         self.idx_map_h,self.idx_map_v = self.idx_map_v, self.idx_map_h
 
@@ -270,6 +269,7 @@ class SeamImage:
         self.idx_map = self.idx_map_h
         self.seams_removal_vertical(num_remove)
         self.rotate_mats(False)
+        self.seam_history.clear()
 
     """
     BONUS SECTION
