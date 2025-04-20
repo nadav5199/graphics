@@ -212,17 +212,25 @@ class SeamImage:
         
         :arg seam: The seam to remove
         """
-
+        # Decrease width since we're removing a seam
         self.w -= 1
-        # change the chosen minimal seam to false in the mask metrix
-        for i in range(self.h):
-            self.mask[i,seam[i]] = False
-
+        
+        # Create a mask to identify pixels to keep (True) and remove (False)
+        self.mask = np.ones((self.h, self.w + 1), dtype=bool)
+        
+        # Vectorized approach to mark seam pixels for removal - much faster than looping
+        self.mask[np.arange(self.h), seam] = False
+        
+        # Create 3D mask for RGB image
         mask_3D = np.stack([self.mask] * 3, axis=2)
-
-        self.resized_gs = self.resized_gs[self.mask].reshape(self.h,self.w,1)
-        self.resized_rgb = self.resized_rgb[mask_3D].reshape(self.h,self.w,3)
-
+        
+        # Apply masks to resize the images
+        self.resized_gs = self.resized_gs[self.mask].reshape(self.h, self.w, 1)
+        self.resized_rgb = self.resized_rgb[mask_3D].reshape(self.h, self.w, 3)
+        
+        # Update energy matrix if necessary for the next iteration
+        if hasattr(self, 'E') and self.E is not None:
+            self.E = self.calc_gradient_magnitude()
 
 
     @NI_decor
@@ -230,19 +238,38 @@ class SeamImage:
         """
         Rotates the matrices either clockwise or counter-clockwise.
         """
+        # For np.rot90, k=1 means 90 degrees counter-clockwise, k=-1 means 90 degrees clockwise
+    # For np.rot90, k=1 means 90 degrees counter-clockwise, k=-1 means 90 degrees clockwise
         rotation = -1 if clockwise else 1
-
-        self.gs = np.rot90(self.gs, k = rotation, axes=(0,1))
-        self.rgb = np.rot90(self.rgb, k = rotation, axes=(0,1))
-        self.resized_rgb = np.rot90(self.resized_rgb, k = rotation, axes=(0,1))
-        self.resized_gs = np.rot90(self.resized_gs, k = rotation, axes=(0,1))
-        self.cumm_mask = np.rot90(self.cumm_mask, k = rotation, axes=(0,1))
-        self.E = np.rot90(self.E, k = rotation, axes=(0,1))
-        self.idx_map_h = np.rot90(self.idx_map_h, k = rotation)
-        self.idx_map_v = np.rot90(self.idx_map_v, k = rotation)
-        self.seams_rgb = np.rot90(self.seams_rgb, k = rotation, axes= (0,1))
-        self.h,self.w = self.w, self.h
-        self.idx_map_h,self.idx_map_v = self.idx_map_v, self.idx_map_h
+        
+        # List of matrices to rotate with their axes parameters
+        matrices_to_rotate = [
+            ('gs', (0, 1)),
+            ('rgb', (0, 1)),
+            ('resized_rgb', (0, 1)),
+            ('resized_gs', (0, 1)),
+            ('cumm_mask', (0, 1)),
+            ('E', (0, 1)),
+            ('idx_map_h', None),
+            ('idx_map_v', None),
+            ('seams_rgb', (0, 1))
+        ]
+        
+        # Rotate each matrix if it exists
+        for attr_name, axes in matrices_to_rotate:
+            if hasattr(self, attr_name) and getattr(self, attr_name) is not None:
+                attr = getattr(self, attr_name)
+                if axes is not None:
+                    setattr(self, attr_name, np.rot90(attr, k=rotation, axes=axes))
+                else:
+                    setattr(self, attr_name, np.rot90(attr, k=rotation))
+        
+        # Swap height and width
+        self.h, self.w = self.w, self.h
+        
+        # Swap horizontal and vertical index maps
+        if hasattr(self, 'idx_map_h') and hasattr(self, 'idx_map_v'):
+            self.idx_map_h, self.idx_map_v = self.idx_map_v, self.idx_map_h
 
 
 
@@ -266,10 +293,9 @@ class SeamImage:
             num_remove (int): number of horizontal seam to be removed
         """
         self.rotate_mats(True)
-        self.idx_map = self.idx_map_h
         self.seams_removal_vertical(num_remove)
         self.rotate_mats(False)
-        self.seam_history.clear()
+        
 
     """
     BONUS SECTION
