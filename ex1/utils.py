@@ -292,8 +292,9 @@ class SeamImage:
         Parameters:
             num_remove (int): number of horizontal seam to be removed
         """
+        self.idx_map = self.idx_map_v
         self.rotate_mats(True)
-        self.seams_removal_vertical(num_remove)
+        self.seams_removal(num_remove)
         self.rotate_mats(False)
         
 
@@ -379,7 +380,7 @@ class GreedySeamImage(SeamImage):
             offset = int(np.argmin(M[i, lo:hi]))
             seam[i] = lo + offset
 
-        return seam
+        return seam.tolist()
 
 
 
