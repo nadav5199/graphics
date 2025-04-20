@@ -354,16 +354,31 @@ class GreedySeamImage(SeamImage):
         The first pixel of the seam should be the pixel with the lowest cost.
         Every row chooses the next pixel based on which neighbor has the lowest cost.
         """
-        seam = np.zeros(self.h, dtype=int)
-        seam[0] = np.argmin(self.E[0])
+        h, w = self.h, self.w
+        E = self.E  # your gradient‑magnitude energy, shape (h,w)
 
-        for r in range(1,self.h):
-            start_idx = max(0, seam[r-1] - 1)
-            finish_idx = min(self.w, seam[r - 1] + 2)
+        # 1) Build the cumulative‑energy map M
+        M = np.zeros_like(E)
+        M[0, :] = E[0, :]
+        for i in range(1, h):
+            for j in range(w):
+                # look at the three pixels above (j-1,j,j+1) within bounds
+                lo = max(0, j-1)
+                hi = min(w, j+2)
+                M[i, j] = E[i, j] + np.min(M[i-1, lo:hi])
 
-            local_min = np.argmin(self.E[r, start_idx:finish_idx])
+        # 2) Backtrack to recover the seam
+        seam = np.zeros(h, dtype=int)
+        # start from the lowest‑energy pixel in the last row
+        seam[-1] = int(np.argmin(M[-1, :]))
+        for i in range(h-2, -1, -1):
+            prev_j = seam[i+1]
+            lo = max(0, prev_j-1)
+            hi = min(w, prev_j+2)
+            # pick the neighbor in row i with smallest M
+            offset = int(np.argmin(M[i, lo:hi]))
+            seam[i] = lo + offset
 
-            seam[r] = start_idx + local_min
         return seam
 
 
