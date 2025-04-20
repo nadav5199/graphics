@@ -414,9 +414,32 @@ class DPSeamImage(SeamImage):
             ii) fill in the backtrack matrix corresponding to M
             iii) seam backtracking: calculates the actual indices of the seam
         """
-        raise NotImplementedError(
-            "TODO: implement DPSeamImage.find_minimal_seam")
-
+        h, w = self.h, self.w
+        
+        # Initialize matrices
+        self.init_mats()
+        
+        # Fill in the backtracking matrix
+        self.calc_bt_mat(self.M, self.E, self.gs, self.backtrack_mat)
+        
+        # Find the minimum energy in the last row
+        seam = np.zeros(h, dtype=int)
+        seam[h-1] = np.argmin(self.M[h-1, :])
+        
+        # Backtrack to find the seam
+        for i in range(h-2, -1, -1):
+            j = seam[i+1]
+            offset = self.backtrack_mat[i+1, j]
+            
+            if offset == 0:  # left diagonal
+                seam[i] = max(0, j-1)  # Ensure we don't go out of bounds
+            elif offset == 1:  # directly above
+                seam[i] = j
+            else:  # right diagonal (offset == 2)
+                seam[i] = min(w-1, j+1)  # Ensure we don't go out of bounds
+        
+        return seam.tolist()
+    
     @NI_decor
     def calc_M(self):
         """ Calculates the matrix M discussed in lecture (with forward-looking cost)
@@ -428,7 +451,26 @@ class DPSeamImage(SeamImage):
             As taught, the energy is calculated from top to bottom.
             You might find the function 'np.roll' useful.
         """
-        raise NotImplementedError("TODO: Implement DPSeamImage.calc_M")
+        h, w = self.h, self.w
+        E = self.E  # Gradient magnitude energy
+        
+        # Initialize M with the energy of the first row
+        M = np.zeros_like(E)
+        M[0, :] = E[0, :]
+        
+        # Fill in the rest of M using dynamic programming
+        for i in range(1, h):
+            for j in range(w):
+                # Consider the three pixels above: left-diagonal, directly above, right-diagonal
+                # Handle boundary cases
+                if j == 0:  # Leftmost pixel
+                    M[i, j] = E[i, j] + min(M[i-1, j], M[i-1, j+1])
+                elif j == w - 1:  # Rightmost pixel
+                    M[i, j] = E[i, j] + min(M[i-1, j-1], M[i-1, j])
+                else:  # Normal case
+                    M[i, j] = E[i, j] + min(M[i-1, j-1], M[i-1, j], M[i-1, j+1])
+        
+        return M
 
     def init_mats(self):
         self.M = self.calc_M()
@@ -448,8 +490,28 @@ class DPSeamImage(SeamImage):
         Guidelines & hints:
             np.ndarray is a reference type. Changing it here may affect it on the outside.
         """
-        raise NotImplementedError("TODO: Implement DPSeamImage.calc_bt_mat")
         h, w = M.shape
+        for i in range(1, h):
+            for j in range(w):
+                # Find which pixel in the previous row led to the current minimum energy
+                if j == 0:  # Leftmost pixel
+                    if M[i-1, j] <= M[i-1, j+1]:
+                        backtrack_mat[i, j] = 1  # directly above
+                    else:
+                        backtrack_mat[i, j] = 2  # right diagonal
+                elif j == w - 1:  # Rightmost pixel
+                    if M[i-1, j-1] <= M[i-1, j]:
+                        backtrack_mat[i, j] = 0  # left diagonal
+                    else:
+                        backtrack_mat[i, j] = 1  # directly above
+                else:  # Normal case
+                    min_val = min(M[i-1, j-1], M[i-1, j], M[i-1, j+1])
+                    if min_val == M[i-1, j-1]:
+                        backtrack_mat[i, j] = 0  # left diagonal
+                    elif min_val == M[i-1, j]:
+                        backtrack_mat[i, j] = 1  # directly above
+                    else:
+                        backtrack_mat[i, j] = 2  # right diagonal
 
 
 def scale_to_shape(orig_shape: np.ndarray, scale_factors: list):
@@ -462,7 +524,10 @@ def scale_to_shape(orig_shape: np.ndarray, scale_factors: list):
     Returns
         the new shape
     """
-    raise NotImplementedError("TODO: Implement scale_to_shape")
+    y_new = int(orig_shape[0] * scale_factors[0])
+    x_new = int(orig_shape[1] * scale_factors[1])
+    
+    return (y_new, x_new)
 
 
 def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
@@ -475,7 +540,20 @@ def resize_seam_carving(seam_img: SeamImage, shapes: np.ndarray):
     Returns
         the resized rgb image
     """
-    raise NotImplementedError("TODO: Implement resize_seam_carving")
+    orig_shape, new_shape = shapes
+   
+    seam_img.reinit()
+    
+    h_diff = orig_shape[0] - new_shape[0]
+    w_diff = orig_shape[1] - new_shape[1]
+    
+    if h_diff > 0:
+        seam_img.seams_removal_horizontal(h_diff)
+    
+    if w_diff > 0:
+        seam_img.seams_removal_vertical(w_diff)
+    
+    return seam_img.resized_rgb
 
 
 def bilinear(image, new_shape):
